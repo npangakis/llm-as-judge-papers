@@ -228,7 +228,7 @@ def append_papers_to_csv(csv_path: Path, new_papers: list[dict]) -> None:
         for paper in new_papers:
             writer.writerow(
                 {
-                    "Section": "",
+                    "Section": "New Paper Added (Unreviewed)",
                     "Section 2": "",
                     "Article Name": paper["title"],
                     "Venue": "arXiv",
