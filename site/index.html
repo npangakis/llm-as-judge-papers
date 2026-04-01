@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LLM-as-a-Judge Paper Browser</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <h1 class="site-title">LLM-as-a-Judge Paper Browser</h1>
+      <p class="site-subtitle">A curated collection of research on using large language models as evaluators</p>
+    </div>
+  </header>
+
+  <nav class="tab-bar">
+    <div class="container">
+      <button class="tab active" data-tab="browse">Browse</button>
+      <button class="tab" data-tab="explore">Explore Trends</button>
+    </div>
+  </nav>
+
+  <main class="container">
+    <div id="loading" class="loading-state">
+      <div class="spinner"></div>
+      <p>Loading papers…</p>
+    </div>
+
+    <div id="error" class="error-state" hidden>
+      <p>⚠️ Failed to load data. Please try refreshing the page.</p>
+    </div>
+
+    <section id="browse-panel" class="tab-panel active" hidden>
+      <div class="filter-bar">
+        <div class="filter-search">
+          <input type="text" id="search-input" placeholder="Search titles and authors…" autocomplete="off">
+        </div>
+        <div class="filter-dropdowns">
+          <div class="multi-select" data-field="section">
+            <button class="multi-select-btn" type="button">Section ▾</button>
+            <div class="multi-select-panel" hidden>
+              <div class="multi-select-actions">
+                <a href="#" class="select-all">Select All</a>
+                <a href="#" class="clear-all">Clear</a>
+              </div>
+              <div class="multi-select-options"></div>
+            </div>
+          </div>
+          <div class="multi-select" data-field="venue">
+            <button class="multi-select-btn" type="button">Venue ▾</button>
+            <div class="multi-select-panel" hidden>
+              <div class="multi-select-actions">
+                <a href="#" class="select-all">Select All</a>
+                <a href="#" class="clear-all">Clear</a>
+              </div>
+              <div class="multi-select-options"></div>
+            </div>
+          </div>
+          <div class="multi-select" data-field="year">
+            <button class="multi-select-btn" type="button">Year ▾</button>
+            <div class="multi-select-panel" hidden>
+              <div class="multi-select-actions">
+                <a href="#" class="select-all">Select All</a>
+                <a href="#" class="clear-all">Clear</a>
+              </div>
+              <div class="multi-select-options"></div>
+            </div>
+          </div>
+        </div>
+        <button id="clear-filters" class="btn-clear" type="button">Clear All Filters</button>
+      </div>
+      <div class="results-count" id="results-count">Showing 0 of 0 papers</div>
+      <div class="table-wrapper">
+        <table id="papers-table">
+          <thead>
+            <tr>
+              <th data-sort="title" class="sortable">Title <span class="sort-icon"></span></th>
+              <th data-sort="section" class="sortable">Section <span class="sort-icon"></span></th>
+              <th data-sort="venue" class="sortable">Venue <span class="sort-icon"></span></th>
+              <th data-sort="year" class="sortable">Year <span class="sort-icon"></span></th>
+              <th data-sort="authors" class="sortable">Authors <span class="sort-icon"></span></th>
+            </tr>
+          </thead>
+          <tbody id="papers-tbody"></tbody>
+        </table>
+      </div>
+      <div class="pagination" id="pagination"></div>
+    </section>
+
+    <section id="explore-panel" class="tab-panel" hidden>
+      <nav class="chart-tab-bar">
+        <button class="chart-tab active" data-chart="temporal">Temporal Distribution</button>
+        <button class="chart-tab" data-chart="scatter">Embedding Space Map</button>
+      </nav>
+
+      <div id="temporal-section" class="chart-section chart-panel active">
+        <div class="chart-controls">
+          <label>
+            Group by:
+            <select id="temporal-group">
+              <option value="section">Section</option>
+              <option value="venue">Venue</option>
+            </select>
+          </label>
+          <label>
+            Mode:
+            <select id="temporal-mode">
+              <option value="stack">Stacked</option>
+              <option value="group">Grouped</option>
+            </select>
+          </label>
+        </div>
+        <div id="temporal-chart" class="chart-container"></div>
+      </div>
+
+      <div id="scatter-section" class="chart-section chart-panel" hidden>
+        <div class="chart-controls">
+          <label>
+            Color by:
+            <select id="scatter-color">
+              <option value="section">Section</option>
+              <option value="venue">Venue</option>
+              <option value="year">Year</option>
+            </select>
+          </label>
+        </div>
+        <div id="scatter-chart" class="chart-container"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>Data sourced from judge_papers.csv • Updated automatically via GitHub Actions</p>
+    </div>
+  </footer>
+
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
