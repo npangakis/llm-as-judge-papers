@@ -49,46 +49,28 @@ def repo_root() -> Path:
     return Path(__file__).resolve().parent.parent
 
 
-def build_query() -> str:
-    """Build the arXiv API query string for title + abstract search."""
-    parts = []
-    for kw in SEARCH_KEYWORDS:
-        escaped = f'"{kw}"'
-        parts.append(f"ti:{escaped}")
-        parts.append(f"abs:{escaped}")
-    return " OR ".join(parts)
+BATCH_SIZE = 3  # keywords per API request to avoid 429s
+BATCH_DELAY = 4  # seconds between requests
 
 
-def fetch_arxiv_papers(max_results: int = 200) -> list[dict]:
-    """Query arXiv API and return parsed paper entries."""
-    query = build_query()
-    # Sort by submitted date descending to get newest first
-    params = {
-        "search_query": query,
-        "start": 0,
-        "max_results": max_results,
-        "sortBy": "submittedDate",
-        "sortOrder": "descending",
-    }
-    url = f"{ARXIV_API}?{urllib.parse.urlencode(params)}"
+def build_batch_queries() -> list[str]:
+    """Split keywords into small batches and return one query string per batch."""
+    queries = []
+    for i in range(0, len(SEARCH_KEYWORDS), BATCH_SIZE):
+        batch = SEARCH_KEYWORDS[i : i + BATCH_SIZE]
+        parts = []
+        for kw in batch:
+            escaped = f'"{kw}"'
+            parts.append(f"ti:{escaped}")
+            parts.append(f"abs:{escaped}")
+        queries.append(" OR ".join(parts))
+    return queries
 
-    print(f"Querying arXiv API …")
-    try:
-        req = urllib.request.Request(url, headers={"User-Agent": "LLJ-Ingestion/1.0"})
-        with urllib.request.urlopen(req, timeout=60) as resp:
-            data = resp.read()
-    except Exception as e:
-        print(f"Error fetching arXiv API: {e}", file=sys.stderr)
-        return []
 
-    # Respect rate limit
-    time.sleep(3)
-
+def _parse_entries(data: bytes, cutoff: datetime) -> list[dict]:
+    """Parse arXiv Atom XML into paper dicts, filtering by cutoff date."""
     root = ET.fromstring(data)
     entries = root.findall(f"{ATOM_NS}entry")
-    print(f"  Received {len(entries)} entries from arXiv.")
-
-    cutoff = datetime.now(timezone.utc) - timedelta(days=14)
     papers = []
 
     for entry in entries:
@@ -101,7 +83,6 @@ def fetch_arxiv_papers(max_results: int = 200) -> list[dict]:
         if published < cutoff:
             continue
 
-        # Extract arXiv ID from the entry id URL
         entry_id_url = entry.findtext(f"{ATOM_NS}id", "")
         arxiv_id = extract_arxiv_id(entry_id_url)
         if not arxiv_id:
@@ -119,7 +100,6 @@ def fetch_arxiv_papers(max_results: int = 200) -> list[dict]:
             if name:
                 authors.append(name.strip())
 
-        # Get the abstract page link (prefer abs link)
         link = f"https://arxiv.org/abs/{arxiv_id}"
 
         papers.append(
@@ -134,8 +114,52 @@ def fetch_arxiv_papers(max_results: int = 200) -> list[dict]:
             }
         )
 
-    print(f"  {len(papers)} papers within the last 14 days.")
     return papers
+
+
+def fetch_arxiv_papers(max_results: int = 200) -> list[dict]:
+    """Query arXiv API in small batches and return deduplicated paper entries."""
+    queries = build_batch_queries()
+    cutoff = datetime.now(timezone.utc) - timedelta(days=14)
+    seen_ids: set[str] = set()
+    all_papers: list[dict] = []
+
+    print(f"Querying arXiv API in {len(queries)} batches …")
+    for i, query in enumerate(queries):
+        params = {
+            "search_query": query,
+            "start": 0,
+            "max_results": max_results,
+            "sortBy": "submittedDate",
+            "sortOrder": "descending",
+        }
+        url = f"{ARXIV_API}?{urllib.parse.urlencode(params)}"
+
+        print(f"  Batch {i + 1}/{len(queries)} …", end=" ", flush=True)
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "LLJ-Ingestion/1.0"})
+            with urllib.request.urlopen(req, timeout=60) as resp:
+                data = resp.read()
+        except Exception as e:
+            print(f"error: {e}", file=sys.stderr)
+            if i < len(queries) - 1:
+                time.sleep(BATCH_DELAY)
+            continue
+
+        papers = _parse_entries(data, cutoff)
+        new_count = 0
+        for p in papers:
+            if p["arxiv_id"] not in seen_ids:
+                seen_ids.add(p["arxiv_id"])
+                all_papers.append(p)
+                new_count += 1
+        print(f"{new_count} new entries")
+
+        if i < len(queries) - 1:
+            time.sleep(BATCH_DELAY)
+
+    print(f"  {len(all_papers)} total papers within the last 14 days.")
+    return all_papers
 
 
 def extract_arxiv_id(url: str) -> str | None:
