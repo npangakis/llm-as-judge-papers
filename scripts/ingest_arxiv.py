@@ -3,7 +3,6 @@
 
 import argparse
 import csv
-import json
 import re
 import sys
 import time
@@ -274,12 +273,6 @@ def main() -> None:
         print(f"Appended {len(new_papers)} papers to {csv_path}")
     else:
         print("No new papers to add.")
-
-    # Output summary as JSON for downstream use (e.g., email notification)
-    summary = [{"title": p["title"], "link": p["link"]} for p in new_papers]
-    print(f"\n::begin-summary::")
-    print(json.dumps(summary, indent=2))
-    print(f"::end-summary::")
 
     if new_papers and args.rebuild_embeddings:
         run_build_data()
