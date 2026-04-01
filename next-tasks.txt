@@ -1,0 +1,63 @@
+Next Tasks
+==========
+
+1. Create a weekly GitHub Actions workflow for arXiv ingestion
+-----------------------------------------------------------
+The ingestion script (scripts/ingest_arxiv.py) exists but has no
+scheduled workflow to run it automatically. Here's how to set it up:
+
+Step 1: Create the workflow file
+  Create .github/workflows/ingest.yml with the following contents:
+
+    name: Weekly arXiv Ingestion
+
+    on:
+      schedule:
+        - cron: '0 9 * * 1'   # Every Monday at 9 AM UTC
+      workflow_dispatch:         # Allow manual trigger from Actions tab
+
+    permissions:
+      contents: write            # Needed to commit updated CSV + data files
+
+    jobs:
+      ingest:
+        runs-on: ubuntu-latest
+        steps:
+          - uses: actions/checkout@v4
+
+          - uses: actions/setup-python@v5
+            with:
+              python-version: '3.12'
+
+          - name: Install dependencies
+            run: pip install -r requirements.txt
+
+          - name: Run ingestion
+            run: python scripts/ingest_arxiv.py --csv judge_papers.csv --rebuild-embeddings
+
+          - name: Commit and push if changed
+            run: |
+              git config user.name "github-actions[bot]"
+              git config user.email "github-actions[bot]@users.noreply.github.com"
+              git add judge_papers.csv site/data/papers.json site/data/embeddings.json
+              git diff --cached --quiet || git commit -m "Weekly arXiv ingestion: add new papers"
+              git push
+
+Step 2: Push and verify
+  - Commit and push the workflow file.
+  - Go to https://github.com/npangakis/llm-as-judge-papers/actions
+  - You should see "Weekly arXiv Ingestion" listed.
+  - Click it → "Run workflow" → "Run workflow" to test manually.
+  - The workflow will query arXiv, append new papers to the CSV,
+    rebuild the site data, and commit the changes. The deploy-pages
+    workflow will then trigger automatically to update the live site.
+
+Notes:
+  - The --rebuild-embeddings flag is important — without it, the script
+    only updates the CSV but not the site JSON files.
+  - If no new papers are found, no commit is made (the git diff check
+    ensures clean runs don't create empty commits).
+  - To change the schedule, edit the cron expression. See
+    https://crontab.guru for help with cron syntax.
+  - To change which keywords are searched, edit the SEARCH_KEYWORDS
+    list in scripts/ingest_arxiv.py.
